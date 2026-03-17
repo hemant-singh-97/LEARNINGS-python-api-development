@@ -150,3 +150,21 @@ def update_post(id: int, post: Post):
     return {
         "updated_post": my_posts[post_idx]
     }
+
+
+"""
+FastAPI comes with a built-in interactive API documentation interface, which is automatically generated based on the API endpoints and the request/response models defined in the code.
+This interface allows developers to easily test the API endpoints and see the expected request/response formats without needing to use external tools like Postman or cURL.
+The interactive API documentation can be accessed by navigating to the /docs endpoint of the FastAPI application in a web browser.
+For example, if the FastAPI application is running locally on port 8000, the interactive API documentation can be accessed at
+    1. http://localhost:8000/docs (Swagger UI interface for API documentation and testing)
+    2. http://localhost:8000/redoc (alternative documentation interface with a different layout and design)
+"""
+
+"""
+To run the FastAPI application, we can use the command:
+    1. fastapi dev
+    2. fastapi dev --app app app/main.py
+The first command will look for the FastAPI application in the current directory and run it,
+while the second command allows us to specify the location of the FastAPI application if it is not in the current directory.
+"""
