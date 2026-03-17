@@ -135,3 +135,18 @@ def delete_post(id: int):
     # We can also return a custom response with the status code and the message,
     # but it is not recommended to return a message in the response body for a DELETE request with status code 204,
     # as it indicates that there is no content to return in the response body.
+
+@app.put("/posts/{id}")
+def update_post(id: int, post: Post):
+    global my_posts
+
+    post_idx = find_post_index(my_posts, id)
+    if post_idx is None:
+        raise HTTPException(
+            status_code = status.HTTP_404_NOT_FOUND,
+            detail = f"Post with id {id} not found."
+        )
+    my_posts[post_idx] = {"id": id, **post.model_dump()}
+    return {
+        "updated_post": my_posts[post_idx]
+    }
