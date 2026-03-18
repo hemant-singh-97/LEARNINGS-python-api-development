@@ -1,9 +1,36 @@
 from fastapi import FastAPI, Response, status, HTTPException
-# from fastapi import Body
 from pydantic import BaseModel
 from typing import Optional, Any
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import time
+
+from app.setting import settings
 
 app = FastAPI()
+
+MAX_RETRIES = 5
+RETRY_DELAY = 2
+trial_count = 0
+while True :
+    try :
+        conn = psycopg2.connect(
+            host = settings.DB_HOST,
+            database = settings.DB_NAME,
+            user = settings.DB_USER,
+            password = settings.DB_PASSWORD,
+            cursor_factory = RealDictCursor
+        )
+        cursor = conn.cursor()
+        print("Database connection was successful.")
+        break
+    except Exception as e:
+        print("Database connection failed.")
+        print("Error:", e)
+        time.sleep(RETRY_DELAY)
+    trial_count += 1
+    if trial_count >= MAX_RETRIES:
+        raise RuntimeError(f"Failed to connect to the database after {MAX_RETRIES} attempts.")
 
 """
 Always keeps the API endpoints as plural, for example, /posts instead of /post.
@@ -21,41 +48,10 @@ If we want to update both the title and content, we can use PUT /posts/{id} with
 4. Delete: DELETE /posts/{id} (app.delete("/posts/{id}"))
 """
 
-my_posts: list[dict[str, Any]] = [
-    {
-        "id": 1,
-        "title": "First Post",
-        "content": "This is the content of the first post.",
-        "published": True,
-        "rating": 5
-    },
-    {
-        "id": 2,
-        "title": "Second Post",
-        "content": "This is the content of the second post.",
-        "published": False,
-        "rating": None
-    }
-]
-global_id = 3
-
 class Post(BaseModel):
     title: str
     content: str
     published: bool = True
-    rating: Optional[int] = None
-
-def find_post(my_posts: list[dict[str, Any]], id: int) -> Optional[dict[str, Any]]:
-    for post in my_posts:
-        if post["id"] == id:
-            return post
-    return None
-
-def find_post_index(my_posts: list[dict[str, Any]], id: int) -> Optional[int]:
-    for index, post in enumerate(my_posts):
-        if post["id"] == id:
-            return index
-    return None
 
 @app.get("/")
 def root() -> dict[str, str]:
@@ -66,21 +62,42 @@ def root() -> dict[str, str]:
 @app.get("/posts")
 def get_posts() -> dict[str, list[dict[str, Any]]]:
     
-    global my_posts
+    global cursor
     
-    print(my_posts)
+    cursor.execute(
+        """
+        SELECT
+            *
+        FROM
+            posts
+        """
+    )
+    posts = cursor.fetchall()
+    print(posts)
     return {
-        "data": my_posts
+        "data": posts
     }
 
 @app.get("/posts/{id}") # id feild is a path parameter, it is required and it is of type int.
 def get_post(id: int, response: Response) : # If we don't specify the type of id, it will be treated as a string and we won't be able to find the post with the given id.
     
-    global my_posts
+    global cursor
     
     print(id)
-    post = find_post(my_posts, id)
-    if not post:
+    cursor.execute(
+        """
+        SELECT
+            *
+        FROM
+            posts
+        WHERE
+            id = %s
+        """, (str(id),) # We need to pass the id as a tuple in the second argument of the execute method, and we need to convert it to string.
+    )
+    post = cursor.fetchone()
+    print(post)
+
+    if post is None:
         # method 1: We can return a custom response with the status code and the error message.
         # response.status_code = status.HTTP_404_NOT_FOUND # We can set the status code of the response to 404 if the post is not found.
         # return {
@@ -101,34 +118,53 @@ def get_post(id: int, response: Response) : # If we don't specify the type of id
 def create_posts(post: Post):
     # From payload, we need only 2 fields, title as a string and content as a string.
     
-    global global_id, my_posts
+    global cursor, conn
     
     print(post)
     print(post.model_dump())
-    my_posts.append(
-        {
-            "id": global_id,
-            **post.model_dump()
-        }
+    cursor.execute(
+        # We use the notation %s to prevent SQL injection attacks,
+        # and we pass the values as a tuple in the second argument of the execute method.
+        """
+        INSERT INTO
+            posts
+            (title, content, published)
+        VALUES
+            (%s, %s, %s)
+        RETURNING
+            *
+        """, (post.title, post.content, post.published)
     )
-    global_id += 1
+    new_post = cursor.fetchone()
+    conn.commit() # We need to commit the transaction to save the changes in the database.
     return {
-        "new_post": f"title: {post.title}, content: {post.content}, published: {post.published}, rating: {post.rating}"
+        "new_post": new_post
     }
 
 @app.delete("/posts/{id}", status_code = status.HTTP_204_NO_CONTENT) # status code 204 means that the resource has been deleted successfully and there is no content to return in the response body.
 def delete_post(id: int):
     # find the index in the array that has required ID, then remove that index from the array and return the response.
     
-    global my_posts
+    global cursor, conn
     
-    post_idx = find_post_index(my_posts, id)
-    if post_idx is None:
+    cursor.execute(
+        """
+        DELETE FROM
+            posts
+        WHERE
+            id = %s
+        RETURNING
+            *
+        """, (str(id),)
+    )
+    deleted_post = cursor.fetchone()
+    conn.commit()
+    
+    if deleted_post is None:
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
             detail = f"Post with id {id} not found."
         )
-    my_posts.pop(post_idx)
     return Response(
         status_code = status.HTTP_204_NO_CONTENT
     )
@@ -138,17 +174,32 @@ def delete_post(id: int):
 
 @app.put("/posts/{id}")
 def update_post(id: int, post: Post):
-    global my_posts
+    global cursor, conn
 
-    post_idx = find_post_index(my_posts, id)
-    if post_idx is None:
+    cursor.execute(
+        """
+        UPDATE
+            posts
+        SET
+            title = %s,
+            content = %s,
+            published = %s
+        WHERE
+            id = %s
+        RETURNING
+            *
+        """, (post.title, post.content, post.published, str(id))
+    )
+    updated_post = cursor.fetchone()
+    conn.commit()
+
+    if updated_post is None:
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
             detail = f"Post with id {id} not found."
         )
-    my_posts[post_idx] = {"id": id, **post.model_dump()}
     return {
-        "updated_post": my_posts[post_idx]
+        "updated_post": updated_post
     }
 
 

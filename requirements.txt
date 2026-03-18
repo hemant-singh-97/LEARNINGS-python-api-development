@@ -1,1 +1,2 @@
 fastapi[all]==0.134.0
+psycopg2==2.9.11
