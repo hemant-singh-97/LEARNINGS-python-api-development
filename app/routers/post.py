@@ -1,8 +1,7 @@
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 from sqlalchemy.orm import Session
 
-from app import schemas
-from app import models
+from app import schemas, models, oauth2
 from app.database import get_db
 from app.utils import row_to_dict
 
@@ -23,7 +22,8 @@ If we want to update both the title and content, we can use PUT /posts/{id} with
 """
 
 @router.get("/", response_model = list[schemas.PostResponse]) # response_model is used to specify the model of the response, it will automatically convert the response to the specified model and return it in the response body.
-def get_posts(db: Session = Depends(get_db)):
+def get_posts(db: Session = Depends(get_db), current_user = Depends(oauth2.get_current_user)):
+    print(row_to_dict(current_user))
     posts = db.query(models.Post).all()
     print(posts)
     print(type(posts))
@@ -31,9 +31,9 @@ def get_posts(db: Session = Depends(get_db)):
     return posts
 
 @router.get("/{id}", response_model = schemas.PostResponse) # id feild is a path parameter, it is required and it is of type int.
-def get_post(id: int, db: Session = Depends(get_db)) :
+def get_post(id: int, db: Session = Depends(get_db), current_user = Depends(oauth2.get_current_user)):
+    print(row_to_dict(current_user))
     post = db.query(models.Post).filter(models.Post.id == id).first()
-    print(row_to_dict(post))
 
     if post is None:
         # method 1: We can return a custom response with the status code and the error message.
@@ -47,11 +47,13 @@ def get_post(id: int, db: Session = Depends(get_db)) :
             status_code = status.HTTP_404_NOT_FOUND,
             detail = f"Post with id {id} not found."
         )
+    print(row_to_dict(post))
     return post
 
 # fast-api will alway send status code 200 for successful requests, but we can change it to 201 for POST requests to indicate that a new resource has been created successfully.
 @router.post("/", status_code = status.HTTP_201_CREATED, response_model = schemas.PostResponse) # status code 201 means that the resource has been created successfully.
-def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db), current_user = Depends(oauth2.get_current_user)):
+    print(row_to_dict(current_user))
     new_post =  models.Post(
         **post.model_dump()
     )
@@ -64,7 +66,8 @@ def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
     return new_post
 
 @router.delete("/{id}", status_code = status.HTTP_204_NO_CONTENT) # status code 204 means that the resource has been deleted successfully and there is no content to return in the response body.
-def delete_post(id: int, db: Session = Depends(get_db)):
+def delete_post(id: int, db: Session = Depends(get_db), current_user = Depends(oauth2.get_current_user)):
+    print(row_to_dict(current_user))
     post_query = db.query(models.Post).filter(models.Post.id == id)
 
     if post_query.first() is None:
@@ -82,7 +85,8 @@ def delete_post(id: int, db: Session = Depends(get_db)):
     # as it indicates that there is no content to return in the response body.
 
 @router.put("/{id}", response_model = schemas.PostResponse)
-def update_post(id: int, post: schemas.PostUpdate, db: Session = Depends(get_db)):
+def update_post(id: int, post: schemas.PostUpdate, db: Session = Depends(get_db), current_user = Depends(oauth2.get_current_user)):
+    print(row_to_dict(current_user))
     post_query = db.query(models.Post).filter(models.Post.id == id)
 
     if post_query.first() is None:
