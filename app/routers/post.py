@@ -24,7 +24,7 @@ If we want to update both the title and content, we can use PUT /posts/{id} with
 @router.get("/", response_model = list[schemas.PostResponse]) # response_model is used to specify the model of the response, it will automatically convert the response to the specified model and return it in the response body.
 def get_posts(db: Session = Depends(get_db), current_user = Depends(oauth2.get_current_user)):
     print(row_to_dict(current_user))
-    posts = db.query(models.Post).all()
+    posts = db.query(models.Post).filter(models.Post.owner_id == current_user.id).all()
     print(posts)
     print(type(posts))
     print(row_to_dict(posts[0]))
@@ -46,6 +46,12 @@ def get_post(id: int, db: Session = Depends(get_db), current_user = Depends(oaut
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
             detail = f"Post with id {id} not found."
+        )
+    
+    if post.owner_id != current_user.id:
+        raise HTTPException(
+            status_code = status.HTTP_403_FORBIDDEN,
+            detail = "Not authorized to perform requested action."
         )
     print(row_to_dict(post))
     return post
