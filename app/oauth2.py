@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from app.setting import settings
+from app.config import settings
 from app import schemas, database, models
 
 # This is the endpoint where the client will send the username and password to get the access token.

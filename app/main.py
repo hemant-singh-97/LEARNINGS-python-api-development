@@ -22,7 +22,8 @@ from app.database import engine
 from app.routers import post, user, auth, vote
 
 # This will create the tables in the database based on the models defined in the models.py file.
-models.Base.metadata.create_all(bind=engine)
+# Incase we have already created the tables using Alembic, we do not need to run this line, because it will not alter the existing tables in any way, and it will not throw an error if the tables already exist.
+# models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 

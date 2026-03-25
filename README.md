@@ -22,3 +22,5 @@ pip install -U pip setuptools wheel
 ```
 
 > Now run `pip install -r requirements.txt`
+
+> Note that all alembic commands are present at : https://alembic.sqlalchemy.org/en/latest/api/ddl.html
