@@ -16,9 +16,10 @@ while the second command allows us to specify the location of the FastAPI applic
 """
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from app import models
-from app.database import engine
+# from app import models
+# from app.database import engine
 from app.routers import post, user, auth, vote
 
 # This will create the tables in the database based on the models defined in the models.py file.
@@ -26,6 +27,18 @@ from app.routers import post, user, auth, vote
 # models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+ORIGINS = [
+    "https://www.google.com",
+    "https://www.youtube.com",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ORIGINS,  # Allow specific origins
+    allow_credentials=True,  # Allow cookies and authentication credentials
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 
 # Include the routers
 app.include_router(post.router)
